@@ -52,7 +52,7 @@ UP_GetModule(uint32_t host_abi_version)
         static_cast<uint32_t>(sizeof(up_module_desc)),
         "psychiatry-unknown",
         "Psychiatry: Unknown",
-        "1.0.0",
+        "0.2.0",
         "Iakov Savelev",
         "Expanded mood, trauma and brain damage with psychiatric "
         "conditions, drugs and phobias",

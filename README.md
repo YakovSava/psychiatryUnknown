@@ -1,194 +1,245 @@
 # Psychiatry: Unknown
 
-Нативный модуль для **Casualties: Unknown**, расширяющий систему настроения,
-травмы и повреждения мозга. Работает через загрузчик
-**Unknown Polymorphism (UP)** и написан на C++ без управляемых сборок.
+Version: **0.2.0**
 
-Мод добавляет психиатрические состояния, препараты, фобии и предмет для
-лоботомии. Иконки муклов берутся из ванильных спрайтов игры — рисовать ничего
-не нужно.
+Native module for **Casualties: Unknown** that expands the mood, trauma, and
+brain damage systems. It runs through the **Unknown Polymorphism (UP)**
+loader and is written in C++ with no managed assemblies.
+
+The mod adds psychiatric conditions, pharmaceuticals, phobias, and a lobotomy
+needle. Moodle icons are reused from vanilla game sprites, so no custom art is
+required.
 
 ---
 
-## Установка
+## Installation
 
-> **Важно:** файлы мода кладутся в
+> **Important:** mod files go into
 > `BepInEx\plugins\UnknownPolymorphism\mods\`
 >
-> Рекомендуемый вариант — отдельная папка:
+> Recommended layout — a dedicated folder:
 >
 > ```
-> <Папка игры>\BepInEx\plugins\UnknownPolymorphism\mods\PsychiatryUnknown\PsychiatryUnknown.dll
+> <Game folder>\BepInEx\plugins\UnknownPolymorphism\mods\PsychiatryUnknown\PsychiatryUnknown.dll
 > ```
 >
-> Можно и без подпапки:
+> A flat install also works:
 >
 > ```
-> <Папка игры>\BepInEx\plugins\UnknownPolymorphism\mods\PsychiatryUnknown.dll
+> <Game folder>\BepInEx\plugins\UnknownPolymorphism\mods\PsychiatryUnknown.dll
 > ```
 
-Порядок действий:
+Steps:
 
-1. Установить **BepInEx 5.4.23.x**.
-2. Установить загрузчик **Unknown Polymorphism** (папка
-   `BepInEx\plugins\UnknownPolymorphism\` должна существовать).
-3. Скопировать `PsychiatryUnknown.dll` в
+1. Install **BepInEx 5.4.23.x**.
+2. Install the **Unknown Polymorphism** loader (the
+   `BepInEx\plugins\UnknownPolymorphism\` folder must exist).
+3. Copy `PsychiatryUnknown.dll` into
    `BepInEx\plugins\UnknownPolymorphism\mods\PsychiatryUnknown\`.
-4. Полностью перезапустить игру.
+4. Restart the game completely.
 
-UP не поддерживает горячую перезагрузку нативных DLL: после замены файла игру
-нужно закрыть и запустить заново.
+UP does not support hot reloading native DLLs: after replacing the file, close
+and relaunch the game.
 
-### Удаление
+### Uninstall
 
-Удалить `PsychiatryUnknown.dll` из папки мода и перезапустить игру.
+Delete `PsychiatryUnknown.dll` from the mod folder and restart the game.
 
 ---
 
-## Требования
+## Requirements
 
-- Casualties: Unknown (полная версия или демо), Unity 2022.3 Mono.
+- Casualties: Unknown (full version or demo), Unity 2022.3 Mono build.
 - BepInEx 5.4.23.x.
 - Unknown Polymorphism.
 - Windows x64.
-- Для сборки из исходников: MSVC 2022 (x64) и исходники UP рядом с модом.
+- Building from source: MSVC 2022 (x64) and the UP sources next to the mod.
 
 ---
 
-## Что добавляет мод
+## Features
 
-### 1. Побочки антидепрессантов
+### 1. Antidepressant side effects
 
-Стандартные антидепрессанты игры считаются СИОЗС. У них появляется скрытая
-шкала побочек:
+Vanilla antidepressants are treated as SSRIs. They gain a hidden side-effect
+meter:
 
-- растёт с каждой дозой (`Antidepressants.TakeDose`);
-- постепенно снижается сама;
-- активно гасится препаратами мода;
-- при высоком уровне периодически вызывает **один** случайный эффект, а не
-  все сразу:
-  - резкое кратковременное падение настроения с последующим восстановлением;
-  - удары по блокам вокруг персонажа;
-  - самоповреждение;
-  - повреждение мозга;
-  - качели настроения;
-  - тошнота и рвота;
-  - повышение или понижение температуры;
-  - потемнение/аберрация экрана;
-  - слуховые галлюцинации.
+- grows with every dose (`Antidepressants.TakeDose`);
+- slowly decays on its own;
+- is actively reduced by the mod's pharmaceuticals;
+- at high levels periodically triggers **one** random effect instead of all of
+  them at once:
+  - a sharp short mood drop followed by recovery;
+  - punches at blocks around the character;
+  - self-harm;
+  - brain damage;
+  - mood swings;
+  - nausea and vomiting;
+  - raised or lowered temperature;
+  - screen darkening/aberration;
+  - auditory hallucinations.
 
-### 2. Препараты
+### 2. Pharmaceuticals
 
-Все препараты — жидкости. Крафтятся из ванильных антидепрессантов, поэтому
-приходится выбирать между лечением и побочками.
+All pharmaceuticals are liquids. They are crafted from vanilla antidepressants,
+so there is a real trade-off between treatment and side effects.
 
-| Препарат | Рецепт | INT | Объём |
+| Drug | Recipe | INT | Volume |
 |---|---|---|---|
-| Valproic Acid | antidepressants 100 мл + biochem 20 мл + flammablepowder | 8 | 100 мл |
-| Quetiapine | antidepressants 100 мл + soothingcrystalshard + flammablepowder | 10 | 100 мл |
-| Benzodiazepine | antidepressants 100 мл + biochem 50 мл + вода 50 мл | 9 | 100 мл |
-| Haloperidol | antidepressants 100 мл + biochem 30 мл + soothingcrystalshard | 12 | 100 мл |
+| Valproic Acid | antidepressants 100 ml + biochem 20 ml + flammablepowder | 8 | 100 ml |
+| Quetiapine | antidepressants 100 ml + soothingcrystalshard + flammablepowder | 10 | 100 ml |
+| Benzodiazepine | antidepressants 100 ml + biochem 50 ml + water 50 ml | 9 | 100 ml |
+| Haloperidol | antidepressants 100 ml + biochem 30 ml + soothingcrystalshard | 12 | 100 ml |
+| Venlafaxine | antidepressants 100 ml + biochem 25 ml + flammablepowder | 11 | 100 ml |
+| Propranolol | antidepressants 50 ml + water 50 ml + soothingcrystalshard | 9 | 100 ml |
+| Hydroxyzine | antidepressants 50 ml + water 50 ml + flammablepowder | 10 | 100 ml |
+| Pregabalin | antidepressants 100 ml + biochem 50 ml + soothingcrystalshard | 12 | 100 ml |
+| MDMA | antidepressants 50 ml + biochem 50 ml + turbulentcrystalshard | 14 | 60 ml |
+| Psilocybin | musharm + biochem 25 ml + water 50 ml | 14 | 60 ml |
 
-Эффекты:
+Effects:
 
-- **Valproic Acid** — нормотимик. Плавно возвращает настроение к нейтральному,
-  снижает травму, сильно гасит шкалу побочек СИОЗС и подавляет их случайные
-  эффекты.
-- **Quetiapine** — антипсихотик. Убирает психоз, панику и агрессию, снижает
-  адреналин; слегка седатирует и снижает давление.
-- **Benzodiazepine** — быстрый анксиолитик. Мгновенно снимает страх, травму и
-  адреналин, но копит зависимость. Без приёма начинается абстиненция: тремор,
-  паника, падение настроения.
-- **Haloperidol** — старый антипсихотик. Сильно гасит шизофрению, но даёт
-  тремор, скованность движения и эмоциональную тупость.
+- **Valproic Acid** — mood stabilizer. Gently returns mood to neutral, reduces
+  trauma, strongly reduces the SSRI side-effect meter, and suppresses random
+  side effects.
+- **Quetiapine** — antipsychotic. Removes psychosis, panic, and aggression;
+  lowers adrenaline; mildly sedating and lowers blood pressure.
+- **Benzodiazepine** — fast anxiolytic. Instantly removes fear, trauma, and
+  adrenaline, but builds dependence. Without it, withdrawal begins: tremor,
+  panic, mood drop. Suppresses panic attacks.
+- **Haloperidol** — old antipsychotic. Strongly suppresses schizophrenia, but
+  causes tremor, stiffness, and emotional flatness.
+- **Venlafaxine** — SNRI. Gradually reduces all phobias while active.
+- **Propranolol** — beta blocker. Removes the physical symptoms of fear:
+  tachycardia, tremor, and adrenaline spikes. Does not cure phobias.
+- **Hydroxyzine** — sedating anxiolytic. Helps prevent panic attacks.
+- **Pregabalin** — gradually dulls phobias and anxiety; mildly sedating.
+- **MDMA** — instantly erases all phobias, but causes a severe bad trip:
+  nausea, vomiting, hyperthermia, hallucinations, mood swings, and serotonin
+  load.
+- **Psilocybin** — instantly erases all phobias, but causes a heavy trip:
+  hallucinations, screen distortion, nausea, and panic.
 
-### 3. Braingrow и Mindwiper
+### 2.1. Unknown Drugs compatibility
 
-- **Braingrow** — обнуляет все психиатрические шкалы мода (состояния, фобии,
-  шкалу побочек). Опасность для жизни остаётся ванильной.
-- **Mindwiper** — тоже обнуляет все шкалы мода; остальные побочки ванильные.
+If **Unknown Drugs** is installed, its liquid `diazepam` is recognized as a
+benzodiazepine: it suppresses panic attacks and reduces trauma the same way
+`psy_benzo` does. Other Unknown Drugs liquids keep working through their own
+delegates.
 
-### 4. Игла для лоботомии
+### 3. Braingrow and Mindwiper
 
-Новый предмет `psy_needle`.
+- **Braingrow** — resets all of the mod's psychiatric meters (conditions,
+  phobias, side-effect meter). Its vanilla lethality remains.
+- **Mindwiper** — also resets all of the mod's meters; other side effects stay
+  vanilla.
 
-| Предмет | Рецепт | INT |
+### 4. Lobotomy needle
+
+New item: `psy_needle`.
+
+| Item | Recipe | INT |
 |---|---|---|
 | Lobotomy Needle | scraptube + 2× scrapmetal | 14 |
 
-Использование из рук или инвентаря:
+Using it from the hand or inventory:
 
-- здоровье мозга −25…40;
+- brain health −25…40;
 - INT −3;
-- сбрасываются травма, ОКР и часть ПТСР/шизофрении;
-- включается органическое расстройство личности;
-- боль и кровотечение в голове, рэгдолл, звук `lobotomy`;
-- 2 применения (условие предмета −0.5 за раз), затем предмет ломается;
-- повторное применение имеет кулдаун.
+- clears trauma, OCD, and part of PTSD/schizophrenia;
+- applies organic personality disorder;
+- head pain and bleeding, ragdoll, `lobotomy` sound;
+- 2 uses (item condition −0.5 per use), then the item breaks;
+- repeated use has a cooldown.
 
-Работает и по ЛКМ в руке, и через обычное использование предмета.
+Works both with LMB while held and through normal item use.
 
-### 5. Состояния
+### 5. Conditions
 
-| Состояние | Как появляется | Что делает |
+| Condition | Cause | Effect |
 |---|---|---|
-| ОКР | высокий СИОЗС-груз или травма | периодически требует действие (выбросить предмет, сменить руку, использовать предмет); не выполнил — настроение −15, травма +4 |
-| Дереализация | травма > 60, ПТСР/КПТСР | персонаж замирает на 1.5–3 с, управление блокируется |
-| ПТСР | убийства выживших, увиденные трупы | флешбэки: галлюцинации, вспышка экрана, падение настроения, рост травмы |
-| КПТСР | укусы ползунов/клещей, повторяющиеся тяжёлые травмы | усиленные флешбэки и страх существ |
-| Органическое расстройство личности | длительно низкое здоровье мозга, лоботомия | постоянное падение настроения, вспышки агрессии; антидепрессантами не лечится, Braingrow сбрасывает |
-| Шизофрения | высокий СИОЗС-груз, повреждение мозга + ПТСР/КПТСР | звуки взрывов, мин, турелей, выстрелов, рычание за спиной, threat music |
-| Панические атаки | травма, КПТСР, абстиненция | выброс адреналина, прыжок и рывок без участия игрока |
-| Бессонница | ПТСР, высокий СИОЗС-груз, травма | попытки поспать часто прерываются, растёт усталость |
-| Арахнофобия | долгое нахождение рядом с ползунами/клещами | паника при приближении существ |
-| Инсомнофобия | 3 неудачные попытки уснуть | страх при низкой энергии |
-| Гемофобия | долгое кровотечение | паника при виде собственной крови |
-| Гуманоидофобия | атаки выживших | паника рядом с людьми |
-| Бушфобия | подрыв на мине рядом с кустом | страх рядом с кустами |
+| OCD | high SSRI load or trauma | periodically demands an action (drop an item, switch hands, use an item); ignoring it gives mood −15 and trauma +4 |
+| Derealization | trauma > 60, PTSD/C-PTSD | the character freezes for 1.5–3 s; movement is locked |
+| PTSD | killing survivors, seeing corpses | flashbacks: hallucinations, screen flash, mood drop, trauma growth |
+| C-PTSD | tick/spider bites, repeated severe injuries | stronger flashbacks and fear of creatures |
+| Organic personality disorder | prolonged low brain health, lobotomy | constant mood drain and anger bursts; not treatable with antidepressants, Braingrow resets it |
+| Schizophrenia | high SSRI load, brain damage + PTSD/C-PTSD | sounds of explosions, mines, turrets, gunshots, growling behind the back, threat music |
+| Panic attacks | trauma, C-PTSD, withdrawal | adrenaline spike, jump and involuntary dash |
+| Insomnia | PTSD, high SSRI load, trauma | attempts to sleep are often interrupted; fatigue builds up |
+| Arachnophobia | prolonged presence near crawlers/ticks | panic when the creatures approach |
+| Insomnophobia | 3 failed attempts to sleep | fear at low energy |
+| Hemophobia | prolonged bleeding | panic at the sight of your own blood |
+| Anthropomorphophobia | attacks by survivors, shooting and killing traders/guards | panic around people |
+| Botanophobia | walking through a bush and then triggering a mine | fear near bushes |
+| Acrophobia | falls from great heights, especially with fractures | fear while falling; after landing the character cannot get up for a while |
+| Pharmacophobia | overdose on medicines | panic when taking medicines |
+| Narcophobia | overdose on narcotics | panic when taking narcotics |
+| Tsibophobia | frequent overeating (hunger above normal) | anxiety when overeating |
+| Ablutophobia | staying very dirty for a long time | anxiety at high dirtiness |
+| Necrophobia | seeing too many corpses | panic near corpses |
+| Splanchnophobia | frequently seeing `internalorgans` | panic near internal organs |
+| Aquaphobia | spending a long time in water | panic in water |
+| Petrophobia | spending a long time in oil | panic in oil |
 
-Все активные состояния отображаются муклами. Иконки — ванильные спрайты
-(`trauma`, `horrified`, `confused`, `braindamage`, `tired` и т.д.); названия и
-описания у муклов свои.
+All active conditions are shown as moodles. Icons are vanilla sprites
+(`trauma`, `horrified`, `confused`, `braindamage`, `tired`, etc.); names and
+descriptions are custom.
 
 ---
 
-## Быстрая проверка через консоль
+## Console quick test
 
-Если в игре включена консоль/читы:
+If console/cheats are enabled:
 
 ```
 spawn antidepressants cursor
 spawn psy_needle cursor
 ```
 
-Добавить жидкость в контейнер в руке:
+Pour liquid under yourself (`player` is the player's position):
+
+```
+floodfill player 1
+floodfill player 3
+```
+
+`1` is water (aquaphobia), `3` is oil (petrophobia). For acrophobia, fly up
+with `noclip` or teleport high and fall.
+
+Add liquid to the container in your hand:
 
 ```
 addliquid psy_valproate 100
 addliquid psy_quetiapine 100
 addliquid psy_benzo 100
 addliquid psy_haloperidol 100
+addliquid psy_venlafaxine 100
+addliquid psy_propranolol 100
+addliquid psy_hydroxyzine 100
+addliquid psy_pregabalin 100
+addliquid psy_mdma 60
+addliquid psy_psilocybin 60
 ```
 
 ---
 
-## Ограничения
+## Limitations
 
-- Психиатрические шкалы и таймеры живут в памяти мода и **не сохраняются в
-  сейв**: после загрузки состояния и фобии сбрасываются.
-- Мультиплеер (Together) не тестировался; мод рассчитан на локального игрока.
-- Баланс (таймеры, шансы, пороги) подобран эмпирически и может меняться.
-- Мод хукает игровые методы (`Item.Awake`, `WaterContainerItem.Drink/Inject`,
-  `Body.UseItem/UseItemInHand/TakeANap`, `MoodleManager.AddAllMoodles` и др.).
-  Конфликты с другими модами, патчащими те же методы, возможны.
-- Проверялся вместе с Together и CUCoreLib.
+- Psychiatric meters and timers live in mod memory and are **not saved**:
+  conditions and phobias reset when a save is loaded.
+- Multiplayer (Together) has not been tested; the mod targets the local player.
+- Balance values (timers, chances, thresholds) are empirical and may change.
+- The mod hooks game methods (`Item.Awake`, `WaterContainerItem.Drink/Inject`,
+  `Body.UseItem/UseItemInHand/TakeANap`, `MoodleManager.AddAllMoodles`, and
+  others). Conflicts with other mods patching the same methods are possible.
+- Tested alongside Together and CUCoreLib.
 
 ---
 
-## Сборка из исходников
+## Building from source
 
-Нужен MSVC 2022. Скрипт `build.bat` ожидает, что рядом лежит папка
-`UnknownPolymorphism` с `include\up_api.h`:
+MSVC 2022 is required. `build.bat` expects the `UnknownPolymorphism` folder
+with `include\up_api.h` next to the mod:
 
 ```
 F:\AnotherProjects\mods\
@@ -199,28 +250,28 @@ F:\AnotherProjects\mods\
     src\...
 ```
 
-Сборка:
+Build:
 
 ```bat
 build.bat
 ```
 
-Результат — `PsychiatryUnknown.dll` в корне проекта.
+The result is `PsychiatryUnknown.dll` in the project root.
 
-### Структура исходников
+### Source layout
 
 ```
 src\
-  module.cpp        точка входа UP, жизненный цикл модуля
-  psych_state.cpp   состояния, препараты, фобии, эффекты
-  registry.cpp      жидкости, предметы, рецепты, локаль
-  hooks.cpp         Harmony-хуки и их установка
-  up_helpers.*      обёртки над C ABI UP
-  psych.hpp         состояние и публичный интерфейс логики
+  module.cpp        UP entry point and module lifecycle
+  psych_state.cpp   conditions, drugs, phobias, effects
+  registry.cpp      liquids, items, recipes, localization
+  hooks.cpp         Harmony hooks and installation
+  up_helpers.*      wrappers over the UP C ABI
+  psych.hpp         state and public logic interface
 ```
 
 ---
 
-## Лицензия
+## License
 
-MIT. См. `LICENSE`.
+MIT. See `LICENSE`.

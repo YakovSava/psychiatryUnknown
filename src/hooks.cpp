@@ -206,22 +206,73 @@ static int32_t UP_CDECL on_mine_pressed(up_hook_frame* frame)
     if (before(frame))
     {
         keep_original(frame);
-        if (frame->instance != 0)
+        if (frame->instance != 0 && frame->argc >= 1 &&
+            frame->args[0].type == UP_VAL_OBJ)
         {
-            psych::on_mine_pressed(frame->instance);
+            psych::on_mine_pressed(frame->instance,
+                                   frame->args[0].as.obj);
         }
     }
     return 0;
 }
 
-static int32_t UP_CDECL on_mine_update(up_hook_frame* frame)
+static int32_t UP_CDECL on_scream(up_hook_frame* frame)
 {
     if (before(frame))
     {
         keep_original(frame);
         if (frame->instance != 0)
         {
-            psych::on_mine_update(frame->instance);
+            psych::on_scream(frame->instance);
+        }
+    }
+    return 0;
+}
+
+static int32_t UP_CDECL on_bush_touched(up_hook_frame* frame)
+{
+    if (before(frame))
+    {
+        keep_original(frame);
+        if (frame->argc >= 1 && frame->args[0].type == UP_VAL_OBJ)
+        {
+            psych::on_bush_touched(frame->args[0].as.obj);
+        }
+    }
+    return 0;
+}
+
+static int32_t UP_CDECL on_item_visible(up_hook_frame* frame)
+{
+    if (before(frame))
+    {
+        keep_original(frame);
+        if (frame->instance != 0)
+        {
+            psych::on_item_visible(frame->instance);
+        }
+    }
+    return 0;
+}
+
+static int32_t UP_CDECL on_building_health(up_hook_frame* frame)
+{
+    if (before(frame))
+    {
+        keep_original(frame);
+        if (frame->instance != 0 && frame->argc >= 1 &&
+            frame->args[0].type == UP_VAL_F32)
+        {
+            float old_health = 0.0f;
+            up_value current;
+            std::memset(&current, 0, sizeof(current));
+            if (up::get_field(frame->instance, "health", &current) &&
+                current.type == UP_VAL_F32)
+            {
+                old_health = current.as.f32;
+            }
+            psych::on_building_health(frame->instance, old_health,
+                                      frame->args[0].as.f32);
         }
     }
     return 0;
@@ -424,12 +475,26 @@ bool install_all(up_host_api* host)
             UP_HOOK_BEFORE, on_guard_attack, "guard melee"
         },
         {
-            "MineScript, Assembly-CSharp", "OnCollisionEnter2D", "Collision2D",
+            "MineScript, Assembly-CSharp", "OnCollisionEnter2D",
+            "Collision2D",
             UP_HOOK_BEFORE, on_mine_pressed, "mine press"
         },
         {
-            "MineScript, Assembly-CSharp", "Update", "",
-            UP_HOOK_BEFORE, on_mine_update, "mine update"
+            "Body, Assembly-CSharp", "Scream", "",
+            UP_HOOK_BEFORE, on_scream, "fall scream"
+        },
+        {
+            "BushCol, Assembly-CSharp", "OnTriggerEnter2D", "Collider2D",
+            UP_HOOK_BEFORE, on_bush_touched, "bush touch"
+        },
+        {
+            "Item, Assembly-CSharp", "OnWillRenderObject", "",
+            UP_HOOK_BEFORE, on_item_visible, "item visible"
+        },
+        {
+            "BuildingEntity, Assembly-CSharp", "set_health",
+            "System.Single",
+            UP_HOOK_BEFORE, on_building_health, "building health"
         },
         {
             "UnityEngine.Resources, UnityEngine.CoreModule", "Load",

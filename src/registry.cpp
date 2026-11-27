@@ -62,6 +62,60 @@ static const DrugSpec kDrugs[] = {
         0.70f, 0.95f, 0.80f,
         12,
         100.0f
+    },
+    {
+        "psy_venlafaxine",
+        "Venlafaxine",
+        "An SNRI. Slowly wears down fear and phobias, at the cost of "
+        "a mild serotonergic load.",
+        0.95f, 0.80f, 0.55f,
+        11,
+        100.0f
+    },
+    {
+        "psy_propranolol",
+        "Propranolol",
+        "A beta blocker. Silences the body's fear response: racing "
+        "heart, shaking hands, surges of adrenaline.",
+        0.90f, 0.95f, 1.00f,
+        9,
+        100.0f
+    },
+    {
+        "psy_hydroxyzine",
+        "Hydroxyzine",
+        "A sedating antihistamine anxiolytic. Helps to head off "
+        "panic attacks before they start.",
+        0.70f, 0.90f, 0.90f,
+        10,
+        100.0f
+    },
+    {
+        "psy_pregabalin",
+        "Pregabalin",
+        "An anxiolytic that gradually dulls phobic fear. Calming, "
+        "slightly sedating.",
+        0.75f, 0.95f, 0.70f,
+        12,
+        100.0f
+    },
+    {
+        "psy_mdma",
+        "MDMA",
+        "A serotonergic euphoriant. Obliterates phobias at once, then "
+        "drags the mind through a brutal bad trip.",
+        1.00f, 0.55f, 0.70f,
+        14,
+        60.0f
+    },
+    {
+        "psy_psilocybin",
+        "Psilocybin",
+        "A psychedelic. Erases phobias in a flash, then floods the "
+        "senses with a hostile, nauseating trip.",
+        0.70f, 0.60f, 1.00f,
+        14,
+        60.0f
     }
 };
 
@@ -89,17 +143,46 @@ static const Ingredient kHaloperidolRecipe[] = {
     { "soothingcrystalshard", false, 0.0f }
 };
 
+static const Ingredient kVenlafaxineRecipe[] = {
+    { "antidepressants", true, 100.0f },
+    { "biochem", true, 25.0f },
+    { "flammablepowder", false, 0.0f }
+};
+
+static const Ingredient kPropranololRecipe[] = {
+    { "antidepressants", true, 50.0f },
+    { "water", true, 50.0f },
+    { "soothingcrystalshard", false, 0.0f }
+};
+
+static const Ingredient kHydroxyzineRecipe[] = {
+    { "antidepressants", true, 50.0f },
+    { "water", true, 50.0f },
+    { "flammablepowder", false, 0.0f }
+};
+
+static const Ingredient kPregabalinRecipe[] = {
+    { "antidepressants", true, 100.0f },
+    { "biochem", true, 50.0f },
+    { "soothingcrystalshard", false, 0.0f }
+};
+
+static const Ingredient kMdmaRecipe[] = {
+    { "antidepressants", true, 50.0f },
+    { "biochem", true, 50.0f },
+    { "turbulentcrystalshard", false, 0.0f }
+};
+
+static const Ingredient kPsilocybinRecipe[] = {
+    { "musharm", false, 0.0f },
+    { "biochem", true, 25.0f },
+    { "water", true, 50.0f }
+};
+
 static const Ingredient kNeedleRecipe[] = {
     { "scraptube", false, 0.0f },
     { "scrapmetal", false, 0.0f },
     { "scrapmetal", false, 0.0f }
-};
-
-static const char* const kDrugIds[] = {
-    "psy_valproate",
-    "psy_quetiapine",
-    "psy_benzo",
-    "psy_haloperidol"
 };
 
 static std::string g_pending_id;
@@ -300,13 +383,19 @@ static void register_recipes()
     }
     const int32_t sources[3] = { 0, 1, 2 };
     const int32_t solid_sources[3] = { 0, 2, 0 };
-    const Ingredient* specs[4] = {
+    const Ingredient* specs[10] = {
         kValproateRecipe,
         kQuetiapineRecipe,
         kBenzoRecipe,
-        kHaloperidolRecipe
+        kHaloperidolRecipe,
+        kVenlafaxineRecipe,
+        kPropranololRecipe,
+        kHydroxyzineRecipe,
+        kPregabalinRecipe,
+        kMdmaRecipe,
+        kPsilocybinRecipe
     };
-    for (int32_t i = 0; i < 4; i++)
+    for (int32_t i = 0; i < 10; i++)
     {
         std::string result_id = kDrugs[i].id;
         add_recipe(recipes, base, result_id.c_str(), true,

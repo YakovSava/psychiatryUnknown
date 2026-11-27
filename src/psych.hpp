@@ -16,9 +16,18 @@ struct State {
     float exposure_spider = 0.0f;
     float exposure_corpse = 0.0f;
     float exposure_creature = 0.0f;
-    float exposure_guard = 0.0f;
+    float exposure_anthropo = 0.0f;
     float exposure_blood = 0.0f;
-    float exposure_bush = 0.0f;
+    float exposure_botan = 0.0f;
+    float exposure_fall = 0.0f;
+    float exposure_pharma = 0.0f;
+    float exposure_narco = 0.0f;
+    float exposure_food = 0.0f;
+    float exposure_dirt = 0.0f;
+    float exposure_necro = 0.0f;
+    float exposure_organs = 0.0f;
+    float exposure_water = 0.0f;
+    float exposure_oil = 0.0f;
     int32_t last_corpses = 0;
     float low_brain_time = 0.0f;
     float condition_ocd = 0.0f;
@@ -30,14 +39,31 @@ struct State {
     float phobia_arachno = 0.0f;
     float phobia_insomno = 0.0f;
     float phobia_hemo = 0.0f;
-    float phobia_humano = 0.0f;
-    float phobia_bush = 0.0f;
+    float phobia_anthropo = 0.0f;
+    float phobia_botan = 0.0f;
+    float phobia_acropho = 0.0f;
+    float phobia_pharma = 0.0f;
+    float phobia_narco = 0.0f;
+    float phobia_tsibo = 0.0f;
+    float phobia_abluto = 0.0f;
+    float phobia_necro = 0.0f;
+    float phobia_splanch = 0.0f;
+    float phobia_aqua = 0.0f;
+    float phobia_petro = 0.0f;
     float med_valproate = 0.0f;
     float med_quetiapine = 0.0f;
     float med_haloperidol = 0.0f;
     float med_benzo = 0.0f;
+    float med_venlafaxine = 0.0f;
+    float med_propranolol = 0.0f;
+    float med_hydroxyzine = 0.0f;
+    float med_pregabalin = 0.0f;
     float benzo_withdrawal = 0.0f;
     float benzo_uses = 0.0f;
+    float medicine_dose = 0.0f;
+    float narcotic_dose = 0.0f;
+    float medicine_cooldown = 0.0f;
+    float narcotic_cooldown = 0.0f;
     float freeze_timer = 0.0f;
     float compulsion_timer = 0.0f;
     int32_t compulsion_kind = 0;
@@ -51,7 +77,14 @@ struct State {
     float organic_timer = 60.0f;
     float needle_cooldown = 0.0f;
     float nap_cooldown = 0.0f;
-    bool mine_bush_pending = false;
+    float fall_time = 0.0f;
+    float bush_touch_timer = 0.0f;
+    float organ_timer = 0.0f;
+    float last_dirt = 0.0f;
+    bool fall_scream = false;
+    bool was_grounded = true;
+    bool in_water = false;
+    bool in_oil = false;
 };
 
 uint64_t current_body();
@@ -85,9 +118,16 @@ void on_guard_died(uint64_t guard);
 
 void on_guard_attacked(uint64_t guard);
 
-void on_mine_pressed(uint64_t mine);
+void on_building_health(uint64_t building, float old_health,
+                        float new_health);
 
-void on_mine_update(uint64_t mine);
+void on_scream(uint64_t body);
+
+void on_bush_touched(uint64_t collider);
+
+void on_mine_pressed(uint64_t mine, uint64_t collision);
+
+void on_item_visible(uint64_t item);
 
 void add_moodles(uint64_t manager);
 

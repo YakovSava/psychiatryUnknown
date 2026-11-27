@@ -72,6 +72,13 @@ static bool read_b(uint64_t body, const char* name, bool* out)
     return up::bool_field(body, name, out);
 }
 
+static bool read_grounded(uint64_t body)
+{
+    bool value = false;
+    up::bool_field(body, "grounded", &value);
+    return value;
+}
+
 static void write_b(uint64_t body, const char* name, bool value)
 {
     up::set_bool(body, name, value);
@@ -215,25 +222,12 @@ static void harm_limb(uint64_t body, float muscle, float skin,
 
 static void hit_blocks(uint64_t body, int32_t count, float damage)
 {
-    uint64_t world = up::obj_static("WorldGeneration", "world");
-    float x = 0.0f;
-    float y = 0.0f;
-    if (world == 0 || !position_of(body, &x, &y))
-    {
-        up::release(world);
-        return;
-    }
+    (void)damage;
     for (int32_t i = 0; i < count; i++)
     {
-        up_value args[4];
-        args[0] = up::value_vec3(x + rnd_range(-3.0f, 3.0f),
-                                 y + rnd_range(-2.0f, 2.0f), 0.0f);
-        args[1] = up::value_f32(damage);
-        args[2] = up::value_bool(true);
-        args[3] = up::value_bool(false);
-        up::invoke(world, "DamageBlock", args, 4, nullptr);
+        up::invoke(body, "DoUnarmedAttack", nullptr, 0, nullptr);
     }
-    up::release(world);
+    play_2d("BSSwing1");
 }
 
 static void hallucinate(uint64_t body, int32_t count)
@@ -252,58 +246,44 @@ static void hallucinate(uint64_t body, int32_t count)
     talk(body, "..!");
 }
 
-static int32_t count_near(uint64_t body, const char* type, float radius)
+
+
+
+
+static bool any_limb_broken(uint64_t body)
 {
-    uint64_t type_handle = up::cached_type(type);
-    if (type_handle == 0)
+    uint64_t limbs = up::obj_field(body, "limbs");
+    if (limbs == 0)
     {
-        return 0;
+        return false;
     }
-    float cx = 0.0f;
-    float cy = 0.0f;
-    if (!position_of(body, &cx, &cy))
+    bool broken = false;
+    int32_t count = up::array_length(limbs);
+    for (int32_t i = 0; i < count; i++)
     {
-        return 0;
-    }
-    up_value arg = up::value_obj(type_handle);
-    up_value result;
-    std::memset(&result, 0, sizeof(result));
-    up::invoke_static("UnityEngine.Object", "FindObjectsOfType", &arg,
-                      1, &result);
-    uint64_t array = result.type == UP_VAL_OBJ ? result.as.obj : 0;
-    if (array == 0)
-    {
-        return 0;
-    }
-    int32_t count = 0;
-    int32_t length = up::array_length(array);
-    float limit = radius * radius;
-    for (int32_t i = 0; i < length; i++)
-    {
-        uint64_t obj = up::array_get(array, i);
-        if (obj == 0)
+        uint64_t limb = up::array_get(limbs, i);
+        if (limb == 0)
         {
             continue;
         }
-        float x = 0.0f;
-        float y = 0.0f;
-        if (position_of(obj, &x, &y))
+        bool value = false;
+        if (up::bool_field(limb, "broken", &value) && value)
         {
-            float dx = x - cx;
-            float dy = y - cy;
-            if (dx * dx + dy * dy < limit)
-            {
-                count++;
-            }
+            broken = true;
         }
-        up::release(obj);
+        up::release(limb);
     }
-    up::release(array);
-    return count;
+    up::release(limbs);
+    return broken;
 }
 
 static void scare(uint64_t body, float adrenaline, float mood)
 {
+    if (g_state.med_propranolol > 0.0f)
+    {
+        adrenaline *= 0.25f;
+        mood *= 0.6f;
+    }
     add_f(body, "adrenaline", adrenaline);
     add_f(body, "curAdrenaline", adrenaline);
     add_f(body, "traumaAmount", 1.5f);
@@ -395,11 +375,17 @@ static void trigger_ssri_effect(uint64_t body)
     }
 }
 
+static void reduce_phobias(State& s, float amount);
+
 static void update_meds(uint64_t body, float dt, State& s)
 {
     s.med_valproate = std::max(0.0f, s.med_valproate - dt);
     s.med_quetiapine = std::max(0.0f, s.med_quetiapine - dt);
     s.med_haloperidol = std::max(0.0f, s.med_haloperidol - dt);
+    s.med_venlafaxine = std::max(0.0f, s.med_venlafaxine - dt);
+    s.med_propranolol = std::max(0.0f, s.med_propranolol - dt);
+    s.med_hydroxyzine = std::max(0.0f, s.med_hydroxyzine - dt);
+    s.med_pregabalin = std::max(0.0f, s.med_pregabalin - dt);
     bool had_benzo = s.med_benzo > 0.0f;
     s.med_benzo = std::max(0.0f, s.med_benzo - dt);
     if (had_benzo && s.med_benzo <= 0.0f)
@@ -407,6 +393,34 @@ static void update_meds(uint64_t body, float dt, State& s)
         s.benzo_withdrawal += 6.0f;
     }
     s.benzo_withdrawal = std::max(0.0f, s.benzo_withdrawal - dt * 0.05f);
+
+    s.medicine_dose = std::max(0.0f, s.medicine_dose - dt * 3.0f);
+    s.narcotic_dose = std::max(0.0f, s.narcotic_dose - dt * 3.0f);
+    s.medicine_cooldown = std::max(0.0f, s.medicine_cooldown - dt);
+    s.narcotic_cooldown = std::max(0.0f, s.narcotic_cooldown - dt);
+    int32_t overdose = 0;
+    read_i(body, "overdoseIndex", &overdose);
+    float opiate = 0.0f;
+    uint64_t painkillers = up::component(body, "Painkillers");
+    if (painkillers != 0)
+    {
+        up::f32_field(painkillers, "actualOpiateReception", &opiate);
+        up::release(painkillers);
+    }
+    bool medicine_overdose = s.medicine_dose > 200.0f ||
+                             (overdose > 0 && opiate <= 60.0f);
+    if (medicine_overdose && s.medicine_cooldown <= 0.0f)
+    {
+        s.exposure_pharma += 60.0f;
+        s.medicine_cooldown = 90.0f;
+    }
+    bool narcotic_overdose = s.narcotic_dose > 150.0f || opiate > 80.0f ||
+                             (overdose > 0 && opiate > 60.0f);
+    if (narcotic_overdose && s.narcotic_cooldown <= 0.0f)
+    {
+        s.exposure_narco += 60.0f;
+        s.narcotic_cooldown = 90.0f;
+    }
 
     if (s.med_valproate > 0.0f)
     {
@@ -441,6 +455,32 @@ static void update_meds(uint64_t body, float dt, State& s)
     {
         add_f(body, "traumaAmount", -dt * 0.4f);
         write_f(body, "horrifiedLevel", 0.0f);
+    }
+    if (s.med_venlafaxine > 0.0f)
+    {
+        reduce_phobias(s, dt * 0.8f);
+        add_f(body, "traumaAmount", -dt * 0.05f);
+    }
+    if (s.med_pregabalin > 0.0f)
+    {
+        reduce_phobias(s, dt * 0.6f);
+        add_f(body, "traumaAmount", -dt * 0.05f);
+    }
+    if (s.med_propranolol > 0.0f)
+    {
+        float rate = read_f(body, "heartRate");
+        write_f(body, "heartRate", move_to(rate, 70.0f, dt * 3.0f));
+        float adrenaline = read_f(body, "adrenaline");
+        write_f(body, "adrenaline", move_to(adrenaline, 0.0f,
+                                            dt * 4.0f));
+        float current = read_f(body, "curAdrenaline");
+        write_f(body, "curAdrenaline", move_to(current, 0.0f,
+                                               dt * 4.0f));
+    }
+    if (s.med_hydroxyzine > 0.0f)
+    {
+        add_f(body, "traumaAmount", -dt * 0.15f);
+        add_f(body, "energy", -dt * 0.04f);
     }
     if (s.benzo_withdrawal > 10.0f)
     {
@@ -484,14 +524,38 @@ static void update_exposure(uint64_t body, float dt, State& s)
     {
         if (corpses > s.last_corpses)
         {
-            s.exposure_corpse += (corpses - s.last_corpses) * 20.0f;
+            int32_t fresh = corpses - s.last_corpses;
+            s.exposure_corpse += fresh * 20.0f;
+            s.exposure_necro += fresh * 8.0f;
             s.last_corpses = corpses;
+            if (s.phobia_necro > 0.0f)
+            {
+                scare(body, 15.0f, -1.5f);
+            }
         }
     }
     float bleed = read_f(body, "totalBleedSpeed");
     if (bleed > 0.05f)
     {
         s.exposure_blood += dt * 2.5f;
+    }
+    float dirt = read_f(body, "dirtyness");
+    if (dirt > 50.0f)
+    {
+        s.exposure_dirt += dt * 1.2f;
+    }
+    else
+    {
+        s.exposure_dirt = std::max(0.0f, s.exposure_dirt - dt * 0.5f);
+    }
+    float hunger = read_f(body, "hunger");
+    if (hunger > 105.0f)
+    {
+        s.exposure_food += dt * 1.5f;
+    }
+    else
+    {
+        s.exposure_food = std::max(0.0f, s.exposure_food - dt * 0.5f);
     }
     float brain = read_f(body, "brainHealth");
     if (brain < 40.0f)
@@ -508,13 +572,23 @@ static void update_exposure(uint64_t body, float dt, State& s)
         return;
     }
     s.scan_accum = 0.0f;
-    int32_t spiders = count_near(body, "SpiderHandler", 14.0f);
-    spiders += count_near(body, "CaveTicks", 14.0f);
-    if (spiders > 0)
+    bool in_water = false;
+    read_b(body, "inWater", &in_water);
+    bool in_oil = in_water && dirt > s.last_dirt + 5.0f;
+    s.in_water = in_water && !in_oil;
+    s.in_oil = in_oil;
+    if (in_water)
     {
-        s.exposure_spider += spiders * 2.2f;
-        s.exposure_creature += spiders * 1.1f;
+        if (in_oil)
+        {
+            s.exposure_oil += 10.0f;
+        }
+        else
+        {
+            s.exposure_water += 8.0f;
+        }
     }
+    s.last_dirt = dirt;
 }
 
 static void develop(uint64_t body, State& s)
@@ -536,20 +610,65 @@ static void develop(uint64_t body, State& s)
     {
         s.condition_cptsd = 40.0f;
     }
-    if (s.phobia_humano == 0.0f && s.exposure_guard > 70.0f &&
+    if (s.phobia_anthropo == 0.0f && s.exposure_anthropo > 70.0f &&
         rnd01() < 0.02f)
     {
-        s.phobia_humano = 45.0f;
+        s.phobia_anthropo = 45.0f;
     }
     if (s.phobia_hemo == 0.0f && s.exposure_blood > 60.0f &&
         rnd01() < 0.02f)
     {
         s.phobia_hemo = 45.0f;
     }
-    if (s.phobia_bush == 0.0f && s.exposure_bush > 50.0f &&
+    if (s.phobia_botan == 0.0f && s.exposure_botan > 50.0f &&
         rnd01() < 0.05f)
     {
-        s.phobia_bush = 55.0f;
+        s.phobia_botan = 55.0f;
+    }
+    if (s.phobia_acropho == 0.0f && s.exposure_fall > 60.0f &&
+        rnd01() < 0.02f)
+    {
+        s.phobia_acropho = 50.0f;
+    }
+    if (s.phobia_pharma == 0.0f && s.exposure_pharma > 40.0f &&
+        rnd01() < 0.02f)
+    {
+        s.phobia_pharma = 45.0f;
+    }
+    if (s.phobia_narco == 0.0f && s.exposure_narco > 40.0f &&
+        rnd01() < 0.02f)
+    {
+        s.phobia_narco = 45.0f;
+    }
+    if (s.phobia_tsibo == 0.0f && s.exposure_food > 60.0f &&
+        rnd01() < 0.02f)
+    {
+        s.phobia_tsibo = 45.0f;
+    }
+    if (s.phobia_abluto == 0.0f && s.exposure_dirt > 60.0f &&
+        rnd01() < 0.02f)
+    {
+        s.phobia_abluto = 45.0f;
+    }
+    if (s.phobia_necro == 0.0f && s.exposure_necro > 80.0f &&
+        rnd01() < 0.02f)
+    {
+        s.phobia_necro = 45.0f;
+    }
+    if (s.phobia_splanch == 0.0f && s.exposure_organs > 40.0f &&
+        rnd01() < 0.02f)
+    {
+        s.phobia_splanch = 50.0f;
+    }
+    if (s.phobia_aqua == 0.0f && s.exposure_water > 40.0f &&
+        rnd01() < 0.05f)
+    {
+        s.phobia_aqua = 45.0f;
+    }
+    if (s.phobia_petro == 0.0f && s.exposure_oil > 30.0f &&
+        rnd01() < 0.05f)
+    {
+        s.phobia_petro = 45.0f;
     }
     if (s.condition_organic == 0.0f && s.low_brain_time > 20.0f &&
         brain < 35.0f && rnd01() < 0.02f)
@@ -585,24 +704,6 @@ static void phobia_frights(uint64_t body, float dt, State& s)
         return;
     }
     s.fright_accum = 0.0f;
-    if (s.phobia_arachno > 0.0f)
-    {
-        if (count_near(body, "SpiderHandler", 12.0f) > 0 ||
-            count_near(body, "CaveTicks", 12.0f) > 0)
-        {
-            scare(body, 25.0f, -2.0f);
-        }
-    }
-    if (s.phobia_humano > 0.0f &&
-        count_near(body, "GuardScript", 22.0f) > 0)
-    {
-        scare(body, 20.0f, -1.5f);
-    }
-    if (s.phobia_bush > 0.0f &&
-        count_near(body, "BushCol", 9.0f) > 0)
-    {
-        scare(body, 15.0f, -1.0f);
-    }
     if (s.phobia_hemo > 0.0f &&
         read_f(body, "totalBleedSpeed") > 0.02f)
     {
@@ -611,6 +712,27 @@ static void phobia_frights(uint64_t body, float dt, State& s)
     if (s.phobia_insomno > 0.0f && read_f(body, "energy") < 40.0f)
     {
         scare(body, 12.0f, -1.0f);
+    }
+    if (s.phobia_tsibo > 0.0f && read_f(body, "hunger") > 100.0f)
+    {
+        scare(body, 10.0f, -1.0f);
+    }
+    if (s.phobia_abluto > 0.0f && read_f(body, "dirtyness") > 50.0f)
+    {
+        scare(body, 10.0f, -1.0f);
+    }
+    if (s.phobia_acropho > 0.0f && !read_grounded(body) &&
+        s.fall_time > 1.0f)
+    {
+        scare(body, 20.0f, -1.5f);
+    }
+    if (s.phobia_aqua > 0.0f && s.in_water)
+    {
+        scare(body, 18.0f, -1.5f);
+    }
+    if (s.phobia_petro > 0.0f && s.in_oil)
+    {
+        scare(body, 18.0f, -1.5f);
     }
 }
 
@@ -634,6 +756,8 @@ static void condition_effects(uint64_t body, float dt, State& s)
     }
     s.needle_cooldown = std::max(0.0f, s.needle_cooldown - dt);
     s.nap_cooldown = std::max(0.0f, s.nap_cooldown - dt);
+    s.bush_touch_timer = std::max(0.0f, s.bush_touch_timer - dt);
+    s.organ_timer = std::max(0.0f, s.organ_timer - dt);
     compulsion_decay(body, dt, s);
     s.ocd_timer -= dt;
     s.dereal_timer -= dt;
@@ -684,7 +808,8 @@ static void condition_effects(uint64_t body, float dt, State& s)
         bool panic = read_f(body, "traumaAmount") > 50.0f ||
                      s.condition_cptsd > 0.0f ||
                      s.benzo_withdrawal > 20.0f;
-        if (panic && s.med_benzo <= 0.0f && s.med_quetiapine <= 0.0f)
+        if (panic && s.med_benzo <= 0.0f && s.med_quetiapine <= 0.0f &&
+            s.med_hydroxyzine <= 0.0f && s.med_pregabalin <= 0.0f)
         {
             add_f(body, "adrenaline", 60.0f);
             add_f(body, "curAdrenaline", 60.0f);
@@ -718,6 +843,43 @@ static void condition_effects(uint64_t body, float dt, State& s)
     }
 }
 
+static void update_fall(uint64_t body, float dt, State& s)
+{
+    bool grounded = read_grounded(body);
+    if (!grounded)
+    {
+        s.fall_time += dt;
+    }
+    if (grounded && !s.was_grounded)
+    {
+        if (s.fall_time > 0.7f)
+        {
+            bool broken = any_limb_broken(body);
+            s.exposure_fall += s.fall_time * 20.0f;
+            if (broken)
+            {
+                s.exposure_fall += 40.0f;
+                s.phobia_acropho = std::max(s.phobia_acropho, 45.0f);
+            }
+            if (s.fall_scream)
+            {
+                s.exposure_fall += 20.0f;
+            }
+            if (s.phobia_acropho > 0.0f &&
+                (broken || s.fall_scream))
+            {
+                s.freeze_timer = std::max(s.freeze_timer,
+                                          rnd_range(2.0f, 5.0f));
+                up::invoke(body, "Ragdoll", nullptr, 0, nullptr);
+                talk(body, "I can't get up...");
+            }
+        }
+        s.fall_time = 0.0f;
+        s.fall_scream = false;
+    }
+    s.was_grounded = grounded;
+}
+
 void tick(float dt)
 {
     uint64_t body = current_body();
@@ -741,6 +903,7 @@ void tick(float dt)
         return;
     }
     State& s = g_state;
+    update_fall(body, dt, s);
     update_meds(body, dt, s);
     update_ssri(body, dt, s);
     update_exposure(body, dt, s);
@@ -769,15 +932,151 @@ void on_take_dose(uint64_t antidepressants, float dose)
         {
             g_state.ssri_load = clampf(g_state.ssri_load + dose * 0.06f,
                                        0.0f, 100.0f);
+            g_state.medicine_dose += dose * 0.2f;
         }
     }
     up::release(body);
 }
 
+static const char* const kMedicineIds[] = {
+    "antidepressants", "antibiotics", "braingrow", "mindwipe",
+    "sleepingpills", "painkillers", "naloxone", "naltrexone",
+    "amiodarone", "vasopressin", "sodiumnitroprusside", "ceftriaxone",
+    "keratinbooster", "disinfectant", "paincream", "woundglue",
+    "bloodcoagulant", "combatpen", "streptokinase", "saline",
+    "ringersolution", "bloodbag", "bloodbaghuman", "antiserum",
+    "antirad", "antivenom", "psy_valproate", "psy_quetiapine",
+    "psy_haloperidol", "psy_venlafaxine", "psy_propranolol",
+    "psy_hydroxyzine", "psy_pregabalin", "diazepam", "flumazenil",
+    "propranolol", "phenobarbital", "chloralhydrate",
+    "sodiumoxybate", "fowlerssolution"
+};
+
+static const char* const kNarcoticIds[] = {
+    "morphine", "heroin", "fentanyl", "opium", "methadone",
+    "oxycodone", "codeine", "tramadol", "buprenorphine",
+    "desomorphine", "carfentanil", "alphapvp", "mephedrone",
+    "cocaine", "pervitin", "ketamine", "kinetic", "liquidcannabis",
+    "lsd", "psilocybin", "modafinil", "nicotine", "oxylitin",
+    "scopolamine", "psy_mdma", "psy_psilocybin", "mdma"
+};
+
+static bool in_list(const char* const* list, size_t count,
+                    const std::string& id)
+{
+    for (size_t i = 0; i < count; i++)
+    {
+        if (id == list[i])
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool is_medicine(const std::string& id)
+{
+    return in_list(kMedicineIds,
+                   sizeof(kMedicineIds) / sizeof(kMedicineIds[0]), id);
+}
+
+static bool is_narcotic(const std::string& id)
+{
+    return in_list(kNarcoticIds,
+                   sizeof(kNarcoticIds) / sizeof(kNarcoticIds[0]), id);
+}
+
+static bool is_benzo(const std::string& id)
+{
+    return id == "psy_benzo" || id == "diazepam";
+}
+
 static bool is_drug(const std::string& id)
 {
     return id == "psy_valproate" || id == "psy_quetiapine" ||
-           id == "psy_benzo" || id == "psy_haloperidol";
+           id == "psy_benzo" || id == "psy_haloperidol" ||
+           id == "psy_venlafaxine" || id == "psy_propranolol" ||
+           id == "psy_hydroxyzine" || id == "psy_pregabalin" ||
+           id == "psy_mdma" || id == "psy_psilocybin";
+}
+
+static void clear_phobias(State& s)
+{
+    s.phobia_arachno = 0.0f;
+    s.phobia_insomno = 0.0f;
+    s.phobia_hemo = 0.0f;
+    s.phobia_anthropo = 0.0f;
+    s.phobia_botan = 0.0f;
+    s.phobia_acropho = 0.0f;
+    s.phobia_pharma = 0.0f;
+    s.phobia_narco = 0.0f;
+    s.phobia_tsibo = 0.0f;
+    s.phobia_abluto = 0.0f;
+    s.phobia_necro = 0.0f;
+    s.phobia_splanch = 0.0f;
+    s.phobia_aqua = 0.0f;
+    s.phobia_petro = 0.0f;
+}
+
+static void reduce_phobias(State& s, float amount)
+{
+    s.phobia_arachno = std::max(0.0f, s.phobia_arachno - amount);
+    s.phobia_insomno = std::max(0.0f, s.phobia_insomno - amount);
+    s.phobia_hemo = std::max(0.0f, s.phobia_hemo - amount);
+    s.phobia_anthropo = std::max(0.0f, s.phobia_anthropo - amount);
+    s.phobia_botan = std::max(0.0f, s.phobia_botan - amount);
+    s.phobia_acropho = std::max(0.0f, s.phobia_acropho - amount);
+    s.phobia_pharma = std::max(0.0f, s.phobia_pharma - amount);
+    s.phobia_narco = std::max(0.0f, s.phobia_narco - amount);
+    s.phobia_tsibo = std::max(0.0f, s.phobia_tsibo - amount);
+    s.phobia_abluto = std::max(0.0f, s.phobia_abluto - amount);
+    s.phobia_necro = std::max(0.0f, s.phobia_necro - amount);
+    s.phobia_splanch = std::max(0.0f, s.phobia_splanch - amount);
+    s.phobia_aqua = std::max(0.0f, s.phobia_aqua - amount);
+    s.phobia_petro = std::max(0.0f, s.phobia_petro - amount);
+}
+
+static void apply_benzo(uint64_t body, float ml)
+{
+    State& s = g_state;
+    s.med_benzo += ml * 9.0f;
+    s.benzo_uses += 1.0f;
+    s.benzo_withdrawal += ml * 0.6f;
+    add_f(body, "traumaAmount", -ml * 0.8f);
+    add_f(body, "happiness", ml * 0.5f);
+    add_f(body, "adrenaline", -ml * 1.5f);
+    write_f(body, "horrifiedLevel", 0.0f);
+    uint64_t pills = up::component(body, "SleepingPills");
+    if (pills != 0)
+    {
+        add_f(pills, "amount", ml * 10.0f);
+        up::release(pills);
+    }
+}
+
+static void note_intake(uint64_t body, const std::string& id, float ml)
+{
+    State& s = g_state;
+    if (is_medicine(id))
+    {
+        s.medicine_dose += ml;
+    }
+    else if (is_narcotic(id))
+    {
+        s.narcotic_dose += ml;
+    }
+    if (id == "diazepam")
+    {
+        apply_benzo(body, ml);
+    }
+    if (s.phobia_pharma > 0.0f && is_medicine(id))
+    {
+        scare(body, 15.0f, -1.5f);
+    }
+    if (s.phobia_narco > 0.0f && is_narcotic(id))
+    {
+        scare(body, 15.0f, -1.5f);
+    }
 }
 
 static void apply_drug(uint64_t body, const std::string& id, float ml)
@@ -797,19 +1096,7 @@ static void apply_drug(uint64_t body, const std::string& id, float ml)
     }
     else if (id == "psy_benzo")
     {
-        s.med_benzo += ml * 9.0f;
-        s.benzo_uses += 1.0f;
-        s.benzo_withdrawal += ml * 0.6f;
-        add_f(body, "traumaAmount", -ml * 0.8f);
-        add_f(body, "happiness", ml * 0.5f);
-        add_f(body, "adrenaline", -ml * 1.5f);
-        write_f(body, "horrifiedLevel", 0.0f);
-        uint64_t pills = up::component(body, "SleepingPills");
-        if (pills != 0)
-        {
-            add_f(pills, "amount", ml * 10.0f);
-            up::release(pills);
-        }
+        apply_benzo(body, ml);
     }
     else if (id == "psy_haloperidol")
     {
@@ -817,6 +1104,57 @@ static void apply_drug(uint64_t body, const std::string& id, float ml)
         s.condition_schizo = std::max(0.0f,
                                       s.condition_schizo - ml);
         add_f(body, "happiness", -ml * 0.05f);
+    }
+    else if (id == "psy_venlafaxine")
+    {
+        s.med_venlafaxine += ml * 6.0f;
+        s.ssri_load = clampf(s.ssri_load + ml * 0.08f, 0.0f, 100.0f);
+        add_f(body, "traumaAmount", -ml * 0.1f);
+    }
+    else if (id == "psy_propranolol")
+    {
+        s.med_propranolol += ml * 8.0f;
+        add_f(body, "heartRate", -ml * 0.2f);
+    }
+    else if (id == "psy_hydroxyzine")
+    {
+        s.med_hydroxyzine += ml * 8.0f;
+        add_f(body, "traumaAmount", -ml * 0.2f);
+        add_f(body, "energy", -ml * 0.05f);
+    }
+    else if (id == "psy_pregabalin")
+    {
+        s.med_pregabalin += ml * 10.0f;
+        add_f(body, "traumaAmount", -ml * 0.1f);
+    }
+    else if (id == "psy_mdma")
+    {
+        clear_phobias(s);
+        s.ssri_load = clampf(s.ssri_load + 35.0f, 0.0f, 100.0f);
+        add_f(body, "sicknessAmount", 40.0f);
+        add_f(body, "temperature", 1.5f);
+        add_f(body, "adrenaline", 40.0f);
+        add_f(body, "happiness", 15.0f);
+        schedule_mood(-20.0f, 10.0f);
+        vomit(body);
+        hallucinate(body, 2);
+        talk(body, "Everything is... too much.");
+        play_2d("heartbeat");
+    }
+    else if (id == "psy_psilocybin")
+    {
+        clear_phobias(s);
+        add_f(body, "sicknessAmount", 30.0f);
+        add_f(body, "happiness", -10.0f);
+        schedule_mood(20.0f, 12.0f);
+        camera_field("bonusAbber", 3.0f);
+        hallucinate(body, 3);
+        if (rnd01() < 0.6f)
+        {
+            vomit(body);
+        }
+        talk(body, "The walls are breathing.");
+        play_2d("heartbeat");
     }
     play_2d("pills");
 }
@@ -831,22 +1169,31 @@ static void clear_all_conditions()
     s.condition_organic = 0.0f;
     s.condition_schizo = 0.0f;
     s.condition_insomnia = 0.0f;
-    s.phobia_arachno = 0.0f;
-    s.phobia_insomno = 0.0f;
-    s.phobia_hemo = 0.0f;
-    s.phobia_humano = 0.0f;
-    s.phobia_bush = 0.0f;
+    clear_phobias(s);
     s.med_valproate = 0.0f;
     s.med_quetiapine = 0.0f;
     s.med_haloperidol = 0.0f;
     s.med_benzo = 0.0f;
+    s.med_venlafaxine = 0.0f;
+    s.med_propranolol = 0.0f;
+    s.med_hydroxyzine = 0.0f;
+    s.med_pregabalin = 0.0f;
     s.benzo_withdrawal = 0.0f;
     s.exposure_spider = 0.0f;
     s.exposure_corpse = 0.0f;
     s.exposure_creature = 0.0f;
-    s.exposure_guard = 0.0f;
+    s.exposure_anthropo = 0.0f;
     s.exposure_blood = 0.0f;
-    s.exposure_bush = 0.0f;
+    s.exposure_botan = 0.0f;
+    s.exposure_fall = 0.0f;
+    s.exposure_pharma = 0.0f;
+    s.exposure_narco = 0.0f;
+    s.exposure_food = 0.0f;
+    s.exposure_dirt = 0.0f;
+    s.exposure_necro = 0.0f;
+    s.exposure_organs = 0.0f;
+    s.exposure_water = 0.0f;
+    s.exposure_oil = 0.0f;
     s.insomnia_fails = 0;
     s.compulsion_kind = 0;
     s.compulsion_timer = 0.0f;
@@ -939,6 +1286,7 @@ bool on_drink(uint64_t container, uint64_t body, float amount,
                 up::release(type);
             }
         }
+        note_intake(body, liquid, ml);
         up::release(entry);
     }
     up_value drain_arg = up::value_obj(drain);
@@ -1020,6 +1368,7 @@ bool on_inject(uint64_t container, uint64_t limb, float amount)
                 up::release(type);
             }
         }
+        note_intake(body, liquid, ml);
         up::release(entry);
     }
     up_value drain_arg = up::value_obj(drain);
@@ -1217,9 +1566,17 @@ void on_switch_hands(uint64_t body)
 
 void on_spider_bite(uint64_t limb)
 {
-    (void)limb;
     g_state.exposure_creature += 15.0f;
     g_state.exposure_spider += 8.0f;
+    if (g_state.phobia_arachno > 0.0f)
+    {
+        uint64_t body = up::obj_field(limb, "body");
+        if (body != 0)
+        {
+            scare(body, 25.0f, -2.0f);
+            up::release(body);
+        }
+    }
 }
 
 void on_guard_died(uint64_t guard)
@@ -1229,80 +1586,179 @@ void on_guard_died(uint64_t guard)
     if (by_player)
     {
         g_state.exposure_corpse += 35.0f;
-        g_state.exposure_guard += 10.0f;
+        g_state.exposure_anthropo += 10.0f;
     }
 }
 
 void on_guard_attacked(uint64_t guard)
 {
-    uint64_t body = current_body();
-    if (body == 0)
+    (void)guard;
+    g_state.exposure_anthropo += 15.0f;
+    if (g_state.phobia_anthropo > 0.0f)
     {
-        return;
-    }
-    float x = 0.0f;
-    float y = 0.0f;
-    float bx = 0.0f;
-    float by = 0.0f;
-    if (position_of(guard, &x, &y) && position_of(body, &bx, &by))
-    {
-        float dx = x - bx;
-        float dy = y - by;
-        if (dx * dx + dy * dy < 400.0f)
+        uint64_t body = current_body();
+        if (body != 0)
         {
-            g_state.exposure_guard += 15.0f;
+            scare(body, 20.0f, -1.5f);
+            up::release(body);
         }
     }
-    up::release(body);
 }
 
-void on_mine_pressed(uint64_t mine)
+static bool object_is_player(uint64_t obj)
 {
-    uint64_t body = current_body();
-    if (body == 0)
+    if (obj == 0)
     {
-        return;
+        return false;
     }
-    float x = 0.0f;
-    float y = 0.0f;
-    float bx = 0.0f;
-    float by = 0.0f;
-    if (position_of(mine, &x, &y) && position_of(body, &bx, &by))
+    uint64_t game_object = up::obj_field(obj, "gameObject");
+    if (game_object == 0)
     {
-        float dx = x - bx;
-        float dy = y - by;
-        if (dx * dx + dy * dy < 64.0f &&
-            count_near(body, "BushCol", 10.0f) > 0)
+        return false;
+    }
+    bool result = false;
+    uint64_t limb = up::component(game_object, "Limb");
+    if (limb != 0)
+    {
+        uint64_t body = up::obj_field(limb, "body");
+        if (body != 0)
         {
-            g_state.mine_bush_pending = true;
+            result = up::instance_id(body) == g_state.body_instance;
+            up::release(body);
+        }
+        up::release(limb);
+    }
+    else
+    {
+        uint64_t body = up::component(game_object, "Body");
+        if (body != 0)
+        {
+            result = up::instance_id(body) == g_state.body_instance;
+            up::release(body);
         }
     }
-    up::release(body);
+    up::release(game_object);
+    return result;
 }
 
-void on_mine_update(uint64_t mine)
+void on_building_health(uint64_t building, float old_health,
+                        float new_health)
 {
-    if (!g_state.mine_bush_pending)
+    if (new_health >= old_health)
     {
         return;
     }
-    bool pressed = false;
-    float elapsed = 0.0f;
-    read_b(mine, "pressed", &pressed);
-    up::f32_field(mine, "timeSincePressed", &elapsed);
-    if (!pressed || elapsed < 0.8f)
+    bool humanoid = false;
+    uint64_t trader = up::component(building, "TraderScript");
+    if (trader != 0)
+    {
+        humanoid = true;
+        up::release(trader);
+    }
+    if (!humanoid)
+    {
+        uint64_t guard = up::component(building, "GuardScript");
+        if (guard != 0)
+        {
+            humanoid = true;
+            up::release(guard);
+        }
+    }
+    if (!humanoid)
     {
         return;
     }
-    g_state.mine_bush_pending = false;
-    g_state.exposure_bush = 100.0f;
-    g_state.phobia_bush = std::max(g_state.phobia_bush, 55.0f);
+    State& s = g_state;
+    s.exposure_anthropo += 6.0f;
+    s.exposure_corpse += 2.0f;
+    bool killed = new_health < 0.5f && old_health >= 0.5f;
+    if (killed)
+    {
+        s.exposure_corpse += 35.0f;
+        s.exposure_anthropo += 15.0f;
+    }
+    if (s.phobia_anthropo > 0.0f && (killed || rnd01() < 0.15f))
+    {
+        uint64_t body = current_body();
+        if (body != 0)
+        {
+            scare(body, 20.0f, -1.5f);
+            up::release(body);
+        }
+    }
+}
+
+void on_scream(uint64_t body)
+{
+    if (!read_grounded(body) &&
+        up::instance_id(body) == g_state.body_instance)
+    {
+        g_state.fall_scream = true;
+    }
+}
+
+void on_bush_touched(uint64_t collider)
+{
+    if (!object_is_player(collider))
+    {
+        return;
+    }
+    g_state.bush_touch_timer = 20.0f;
+    if (g_state.phobia_botan > 0.0f)
+    {
+        uint64_t body = current_body();
+        if (body != 0)
+        {
+            scare(body, 15.0f, -1.0f);
+            up::release(body);
+        }
+    }
+}
+
+void on_mine_pressed(uint64_t mine, uint64_t collision)
+{
+    (void)mine;
+    uint64_t collider = up::obj_field(collision, "collider");
+    bool mine_hit = object_is_player(collider);
+    up::release(collider);
+    if (!mine_hit || g_state.bush_touch_timer <= 0.0f)
+    {
+        return;
+    }
+    g_state.bush_touch_timer = 0.0f;
+    g_state.exposure_botan += 100.0f;
+    g_state.phobia_botan = std::max(g_state.phobia_botan, 55.0f);
     uint64_t body = current_body();
     if (body != 0)
     {
         add_f(body, "traumaAmount", 20.0f);
         scare(body, 40.0f, -5.0f);
         up::release(body);
+    }
+}
+
+void on_item_visible(uint64_t item)
+{
+    std::string id;
+    if (!up::str_field(item, "id", &id) || id != "internalorgans")
+    {
+        return;
+    }
+    State& s = g_state;
+    if (s.organ_timer > 0.0f)
+    {
+        return;
+    }
+    s.organ_timer = 2.0f;
+    s.exposure_organs += 3.0f;
+    if (s.phobia_splanch > 0.0f)
+    {
+        uint64_t body = current_body();
+        if (body != 0)
+        {
+            scare(body, 15.0f, -1.5f);
+            up::release(body);
+        }
     }
 }
 
@@ -1417,15 +1873,61 @@ void add_moodles(uint64_t manager)
         moodle(manager, 3, "trauma", "Hemophobia",
                "Blood. Your own blood.", false);
     }
-    if (s.phobia_humano > 0.0f)
+    if (s.phobia_anthropo > 0.0f)
     {
-        moodle(manager, 2, "horrified", "Humanoidophobia",
+        moodle(manager, 2, "horrified", "Anthropomorphophobia",
                "The survivors are the worst monsters.", false);
     }
-    if (s.phobia_bush > 0.0f)
+    if (s.phobia_botan > 0.0f)
     {
-        moodle(manager, 1, "confused", "Bushophobia",
+        moodle(manager, 1, "confused", "Botanophobia",
                "Something waits in the bushes.", false);
+    }
+    if (s.phobia_acropho > 0.0f)
+    {
+        moodle(manager, 1, "impendingdoom", "Acrophobia",
+               "The ground is too far away. Falling means lying "
+               "there afterwards.", false);
+    }
+    if (s.phobia_pharma > 0.0f)
+    {
+        moodle(manager, 1, "sick", "Pharmacophobia",
+               "Medicine is poison. Every dose is a risk.", false);
+    }
+    if (s.phobia_narco > 0.0f)
+    {
+        moodle(manager, 2, "sick", "Narcophobia",
+               "Drugs took something from you. Never again.", false);
+    }
+    if (s.phobia_tsibo > 0.0f)
+    {
+        moodle(manager, 0, "sick", "Tsibophobia",
+               "Food is a threat. Eating too much is terrifying.", false);
+    }
+    if (s.phobia_abluto > 0.0f)
+    {
+        moodle(manager, 0, "dirty", "Ablutophobia",
+               "Being dirty feels unbearable.", false);
+    }
+    if (s.phobia_necro > 0.0f)
+    {
+        moodle(manager, 2, "impendingdoom", "Necrophobia",
+               "The dead are watching.", false);
+    }
+    if (s.phobia_splanch > 0.0f)
+    {
+        moodle(manager, 1, "trauma", "Splanchnophobia",
+               "Organs. You can still feel them.", false);
+    }
+    if (s.phobia_aqua > 0.0f)
+    {
+        moodle(manager, 1, "wet", "Aquaphobia",
+               "The water wants to close over your head.", false);
+    }
+    if (s.phobia_petro > 0.0f)
+    {
+        moodle(manager, 1, "wet", "Petrophobia",
+               "The black slick clings and will not wash off.", false);
     }
     up::release(body);
 }
